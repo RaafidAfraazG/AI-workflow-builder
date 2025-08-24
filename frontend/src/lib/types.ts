@@ -49,7 +49,12 @@ export interface Document {
 
 export interface KnowledgeBaseSearchResult {
   id: string
-  content: string
-  metadata: Record<string, any>
-  score: number
+  filename: string
+  file_path: string
+  content_type: string
+  created_at: string
+  is_ingested: boolean
+  content: string      // extracted text from PDF or doc
+  metadata?: Record<string, any>
+  score?: number       // relevance score
 }

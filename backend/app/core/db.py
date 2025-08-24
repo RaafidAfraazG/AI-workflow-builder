@@ -1,4 +1,4 @@
-# backend/app/core/db.py - PostgreSQL Database Setup
+# backend/app/core/db.py - OPTIMIZED PostgreSQL Database Setup
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -7,22 +7,31 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Create engine with PostgreSQL-specific settings
+# OPTIMIZATION: Better connection pool settings
 engine = create_engine(
     settings.DATABASE_URL,
-    pool_pre_ping=True,  # Verify connections before use
-    pool_recycle=300,    # Recycle connections every 5 minutes
-    echo=settings.DEBUG  # Log SQL queries if in debug mode
+    pool_pre_ping=True,
+    pool_recycle=300,
+    pool_size=20,          # Increase pool size
+    max_overflow=30,       # Allow more overflow connections
+    pool_timeout=30,       # Connection timeout
+    echo=False             # Turn off SQL logging in production
+    # Removed problematic connect_args for now
 )
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+SessionLocal = sessionmaker(
+    autocommit=False, 
+    autoflush=False,    # Don't auto-flush - manual control for better performance
+    bind=engine
+)
 
 Base = declarative_base()
 
 def get_db():
-    """Dependency to get database session"""
+    """Dependency to get database session - OPTIMIZED"""
     db = SessionLocal()
     try:
+        # OPTIMIZATION: Set session-level optimizations (removed problematic setting)
         yield db
     except Exception as e:
         logger.error(f"Database session error: {str(e)}")

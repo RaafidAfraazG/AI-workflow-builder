@@ -5,8 +5,10 @@ interface BuilderState {
   nodes: Node[]
   edges: Edge[]
   selectedNode: Node | null
+  currentWorkflowId: string | null
   setNodes: (nodes: Node[]) => void
   setEdges: (edges: Edge[]) => void
+  setWorkflow: (nodes: Node[], edges: Edge[]) => void
   addNode: (node: Node) => void
   updateNode: (id: string, updates: Partial<Node>) => void
   removeNode: (id: string) => void
@@ -16,15 +18,19 @@ interface BuilderState {
   resetNodes: () => void
   resetEdges: () => void
   setSelectedNode: (node: Node | null) => void
+  setCurrentWorkflowId: (id: string | null) => void
+  clearWorkflow: () => void
 }
 
 export const useBuilderStore = create<BuilderState>((set, get) => ({
   nodes: [],
   edges: [],
   selectedNode: null,
+  currentWorkflowId: null,
 
   setNodes: (nodes) => set({ nodes }),
   setEdges: (edges) => set({ edges }),
+  setWorkflow: (nodes, edges) => set({ nodes, edges }),
 
   addNode: (node) => set((state) => ({ nodes: [...state.nodes, node] })),
 
@@ -59,8 +65,14 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
 
   resetNodes: () => set({ nodes: [] }),
   resetEdges: () => set({ edges: [] }),
-
   setSelectedNode: (selectedNode) => set({ selectedNode }),
+  setCurrentWorkflowId: (id) => set({ currentWorkflowId: id }),
+  clearWorkflow: () => set({ 
+    nodes: [], 
+    edges: [], 
+    selectedNode: null, 
+    currentWorkflowId: null 
+  }),
 }))
 
 export default useBuilderStore

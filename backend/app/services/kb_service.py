@@ -1,4 +1,4 @@
-# app/services/kb_service.py - Fixed version
+# backend/app/services/kb_service.py - Updated for Pydantic v2
 import os
 import logging
 import fitz  # PyMuPDF
@@ -48,34 +48,44 @@ class KnowledgeBaseService:
             self.embedding_service = None
 
     async def upload_document(self, file: UploadFile, collection: str) -> DocumentResponse:
-        """Save uploaded PDF to disk + DB record - FIXED"""
-        # Use settings.UPLOAD_DIR consistently
-        upload_dir = settings.UPLOAD_DIR
-        os.makedirs(upload_dir, exist_ok=True)
+        """Save uploaded PDF to disk + DB record - FIXED for Pydantic v2"""
+        try:
+            # Ensure upload directory exists
+            upload_dir = settings.UPLOAD_DIR
+            os.makedirs(upload_dir, exist_ok=True)
 
-        file_path = os.path.join(upload_dir, file.filename)
-        
-        # Read file content
-        content = await file.read()
-        
-        # Write to disk
-        with open(file_path, "wb") as f:
-            f.write(content)
-        
-        logger.info(f"File saved to: {file_path}")
+            file_path = os.path.join(upload_dir, file.filename)
+            
+            # Read file content
+            content = await file.read()
+            
+            # Write to disk
+            with open(file_path, "wb") as f:
+                f.write(content)
+            
+            logger.info(f"File saved to: {file_path}")
 
-        # Create database record - FIXED: Use correct field names
-        document = Document(
-            filename=file.filename,                    # ✅ Correct field name
-            file_path=file_path,                      # ✅ Correct
-            content_type=file.content_type or "application/pdf",  # ✅ Use actual field
-        )
-        self.db.add(document)
-        self.db.commit()
-        self.db.refresh(document)
+            # Create database record
+            document = Document(
+                filename=file.filename,
+                file_path=file_path,
+                content_type=file.content_type or "application/pdf",
+                is_ingested=False
+            )
+            
+            self.db.add(document)
+            self.db.commit()
+            self.db.refresh(document)
 
-        logger.info(f"Document created with ID: {document.id}")
-        return DocumentResponse.from_attributes(document)
+            logger.info(f"Document created with ID: {document.id}")
+            
+            # FIXED: Use model_validate for Pydantic v2
+            return DocumentResponse.model_validate(document)
+            
+        except Exception as e:
+            logger.error(f"Error in upload_document: {str(e)}")
+            self.db.rollback()
+            raise
 
     async def ingest_document(self, document_id: UUID) -> SuccessResponse:
         """Extract text, create embeddings, and push to ChromaDB"""
@@ -89,6 +99,9 @@ class KnowledgeBaseService:
 
         try:
             text = self._extract_text_from_pdf(document.file_path)
+            if not text:
+                return SuccessResponse(message=f"Document {document_id} has no extractable text")
+
             chunks = self._chunk_text(text)
             embeddings = await self.embedding_service.embed_texts(chunks)
 
@@ -113,10 +126,11 @@ class KnowledgeBaseService:
             return SuccessResponse(message=f"Document {document_id} ingested successfully")
         except Exception as e:
             logger.error(f"Error ingesting document {document_id}: {str(e)}")
+            self.db.rollback()
             raise
 
     async def search_documents(self, query: str, collection: str, top_k: int = 5) -> List[KnowledgeBaseSearchResult]:
-        """Search relevant documents - FIXED: Return proper search results"""
+        """Search relevant documents"""
         if not self.chroma_client or not self.embedding_service:
             logger.warning("Search unavailable, returning empty list")
             return []
@@ -147,23 +161,42 @@ class KnowledgeBaseService:
         """Remove from ChromaDB (vector store)"""
         if not self.chroma_client:
             logger.warning("ChromaDB not available, skipping vector delete")
-            return SuccessResponse(message="Skipped vector delete")
+            return SuccessResponse(message="Skipped vector delete (ChromaDB not available)")
 
         try:
             collection_name = f"doc_{document_id}".replace("-", "_")
-            self.chroma_client.delete_collection(name=collection_name)
-            logger.info(f"Deleted collection for document {document_id}")
-            return SuccessResponse(message=f"Document {document_id} removed from vectorstore")
+            
+            # Check if collection exists before trying to delete
+            try:
+                existing_collections = self.chroma_client.list_collections()
+                collection_exists = any(col.name == collection_name for col in existing_collections)
+                
+                if collection_exists:
+                    self.chroma_client.delete_collection(name=collection_name)
+                    logger.info(f"Deleted collection for document {document_id}")
+                    return SuccessResponse(message=f"Document {document_id} removed from vectorstore")
+                else:
+                    logger.info(f"Collection {collection_name} does not exist, skipping")
+                    return SuccessResponse(message=f"Collection {collection_name} did not exist")
+                    
+            except Exception as delete_error:
+                logger.warning(f"ChromaDB collection deletion failed: {str(delete_error)}")
+                return SuccessResponse(message=f"Vector delete completed with warnings: {str(delete_error)}")
+                
         except Exception as e:
             logger.error(f"Failed to delete document {document_id} from ChromaDB: {str(e)}")
-            return SuccessResponse(message=f"Failed vector delete: {str(e)}")
+            return SuccessResponse(message=f"Vector delete failed: {str(e)}")
 
     def _extract_text_from_pdf(self, file_path: str) -> str:
-        """Extract text from PDF with PyMuPDF"""
+        """Extract text from PDF with PyMuPDF; return empty if no text"""
         try:
             doc = fitz.open(file_path)
-            text = "".join(page.get_text() for page in doc)
+            text = "".join(page.get_text() for page in doc).strip()
             doc.close()
+
+            if not text:
+                logger.warning(f"No extractable text found in {file_path}")
+
             return text
         except Exception as e:
             logger.error(f"Error extracting text from {file_path}: {str(e)}")

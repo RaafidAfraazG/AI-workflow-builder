@@ -9,17 +9,20 @@ const ConfigPanel = () => {
   const config = selectedNode?.data?.config || {}
 
   const [localPrompt, setLocalPrompt] = useState("")
+  const [localCollection, setLocalCollection] = useState(config.collection || "default")
   const [isUploading, setIsUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
 
   // Sync when node changes
   useEffect(() => {
-    if (selectedNode?.type === "llmEngine") {
+    if (!selectedNode) return
+
+    if (selectedNode.type === "llmEngine") {
       setLocalPrompt(config.customPrompt || "")
-    } else if (selectedNode?.type === "userQuery") {
+    } else if (selectedNode.type === "userQuery") {
       setLocalPrompt(config.queryText || "")
-    } else {
-      setLocalPrompt("")
+    } else if (selectedNode.type === "knowledgeBase") {
+      setLocalCollection(config.collection || "default")
     }
   }, [selectedNode?.id])
 
@@ -43,7 +46,7 @@ const ConfigPanel = () => {
     })
   }
 
-  // File upload logic (real API call)
+  // File upload logic
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -57,13 +60,13 @@ const ConfigPanel = () => {
     setUploadError(null)
 
     try {
-      // Call backend upload
-      const newDoc = await api.uploadDocument(file)
+      // Upload
+      const newDoc = await api.uploadDocument(file, localCollection)
 
-      // Add to config
+      // Update node config
       handleConfigChange("documents", [...(config.documents || []), newDoc])
 
-      // Immediately trigger ingestion
+      // Trigger ingestion
       await api.ingestDocument(newDoc.id)
     } catch (err: any) {
       console.error("Upload failed:", err)
@@ -76,7 +79,7 @@ const ConfigPanel = () => {
 
   const removeDocument = async (docId: string) => {
     try {
-      await fetch(`/api/kb/${docId}`, { method: "DELETE" })
+      await api.deleteDocument(docId)
       const updated = (config.documents || []).filter((doc: any) => doc.id !== docId)
       handleConfigChange("documents", updated)
     } catch (err) {
@@ -85,7 +88,6 @@ const ConfigPanel = () => {
     }
   }
 
-  // Render fields based on node type
   const renderFields = () => {
     switch (selectedNode.type) {
       case "userQuery":
@@ -113,10 +115,11 @@ const ConfigPanel = () => {
               <label className="text-xs font-medium">Collection</label>
               <input
                 type="text"
-                value={config.collection || "default"}
-                onChange={(e) =>
+                value={localCollection}
+                onChange={(e) => {
+                  setLocalCollection(e.target.value)
                   handleConfigChange("collection", e.target.value)
-                }
+                }}
                 className="w-full p-2 border rounded-md text-sm"
               />
             </div>
@@ -136,9 +139,7 @@ const ConfigPanel = () => {
 
             {/* File Upload */}
             <div>
-              <label className="text-xs font-medium mb-2 block">
-                Upload Documents
-              </label>
+              <label className="text-xs font-medium mb-2 block">Upload Documents</label>
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
                 <input
                   type="file"
@@ -162,17 +163,13 @@ const ConfigPanel = () => {
                   </span>
                 </label>
               </div>
-              {uploadError && (
-                <p className="text-xs text-red-500 mt-1">{uploadError}</p>
-              )}
+              {uploadError && <p className="text-xs text-red-500 mt-1">{uploadError}</p>}
             </div>
 
             {/* Uploaded Documents */}
             {config.documents && config.documents.length > 0 && (
               <div>
-                <label className="text-xs font-medium mb-2 block">
-                  Uploaded Documents
-                </label>
+                <label className="text-xs font-medium mb-2 block">Uploaded Documents</label>
                 <div className="space-y-2 max-h-32 overflow-y-auto">
                   {config.documents.map((doc: any) => (
                     <div
@@ -202,7 +199,6 @@ const ConfigPanel = () => {
       case "llmEngine":
         return (
           <>
-            {/* Provider */}
             <div>
               <label className="text-xs font-medium">Provider</label>
               <input
@@ -213,7 +209,6 @@ const ConfigPanel = () => {
               />
             </div>
 
-            {/* Model */}
             <div>
               <label className="text-xs font-medium">Model</label>
               <input
@@ -224,7 +219,6 @@ const ConfigPanel = () => {
               />
             </div>
 
-            {/* Temperature */}
             <div>
               <label className="text-xs font-medium">Temperature</label>
               <input
@@ -233,14 +227,11 @@ const ConfigPanel = () => {
                 max={1}
                 step={0.1}
                 value={config.temperature ?? 0.7}
-                onChange={(e) =>
-                  handleConfigChange("temperature", parseFloat(e.target.value))
-                }
+                onChange={(e) => handleConfigChange("temperature", parseFloat(e.target.value))}
                 className="w-full p-2 border rounded-md text-sm"
               />
             </div>
 
-            {/* Custom Prompt */}
             <div>
               <label className="text-xs font-medium">Custom Prompt</label>
               <textarea
@@ -278,9 +269,7 @@ const ConfigPanel = () => {
 
   return (
     <div className="p-4 space-y-4">
-      <h3 className="text-lg font-semibold mb-2">
-        {selectedNode.data.label} Config
-      </h3>
+      <h3 className="text-lg font-semibold mb-2">{selectedNode.data.label} Config</h3>
       {renderFields()}
     </div>
   )

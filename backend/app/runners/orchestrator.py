@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class WorkflowOrchestrator:
     def __init__(self):
         self.llm_service = LLMService()
-        self.kb_service = KnowledgeBaseService()
+        # Remove kb_service from init - we'll create it per request with db session
         self.prompt_builder = PromptBuilder()
 
     def validate_workflow(self, workflow: Workflow) -> None:
@@ -134,8 +134,16 @@ class WorkflowOrchestrator:
                 query = context.get('user_input', '')
                 if query:
                     try:
+                        # Create KB service with database session
+                        kb_service = KnowledgeBaseService(db)
                         top_k = config.get('top_k', 5) if isinstance(config, dict) else 5
-                        results = await self.kb_service.search(workflow_id, query, top_k)
+                        
+                        # Use search_documents method with proper parameters
+                        results = await kb_service.search_documents(
+                            query=query, 
+                            collection=workflow_id,  # Use workflow_id as collection name
+                            top_k=top_k
+                        )
                         context['kb_results'] = results
                         context['kb_context'] = '\n\n'.join([result.content for result in results])
                         logger.info(f"Retrieved {len(results)} KB results")

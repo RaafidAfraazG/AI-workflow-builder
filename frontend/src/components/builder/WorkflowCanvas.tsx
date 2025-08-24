@@ -91,7 +91,7 @@ const WorkflowCanvas: React.FC = () => {
   )
 
   return (
-    <div style={{ width: '100%', height: '100vh' }}>
+    <div className="w-full h-full min-h-0 flex-1">
       <ReactFlow
         nodes={reactFlowNodes}
         edges={reactFlowEdges}
@@ -101,7 +101,7 @@ const WorkflowCanvas: React.FC = () => {
         onNodeClick={onNodeClick}
         nodeTypes={nodeTypes}
         fitView
-        style={{ width: '100%', height: '100%' }}
+        className="w-full h-full"
       >
         <Controls />
         <MiniMap />

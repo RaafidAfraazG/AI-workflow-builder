@@ -13,9 +13,36 @@ class ApiClient {
     return response.json()
   }
 
+  // NEW: Update existing workflow
+  async updateWorkflow(id: string, workflow: Omit<Workflow, 'id' | 'created_at' | 'updated_at'>): Promise<Workflow> {
+    const response = await fetch(`${API_BASE}/workflows/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(workflow),
+    })
+    if (!response.ok) throw new Error('Failed to update workflow')
+    return response.json()
+  }
+
   async getWorkflow(id: string): Promise<Workflow> {
     const response = await fetch(`${API_BASE}/workflows/${id}`)
     if (!response.ok) throw new Error('Failed to get workflow')
+    return response.json()
+  }
+
+  // NEW: Get all workflows
+  async getAllWorkflows(): Promise<Workflow[]> {
+    const response = await fetch(`${API_BASE}/workflows`)
+    if (!response.ok) throw new Error('Failed to get workflows')
+    return response.json()
+  }
+
+  // NEW: Delete workflow
+  async deleteWorkflow(id: string): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${API_BASE}/workflows/${id}`, {
+      method: 'DELETE',
+    })
+    if (!response.ok) throw new Error('Failed to delete workflow')
     return response.json()
   }
 
@@ -120,22 +147,32 @@ class ApiClient {
   }
 
   async searchKnowledgeBase(
-    query: string,
-    collection: string = 'default',
-    topK: number = 5
-  ): Promise<Document[]> {
-    // matches: @router.get("/search") -> params: query, collection, top_k
-    const url = `${API_BASE}/kb/search?query=${encodeURIComponent(query)}&collection=${encodeURIComponent(
-      collection
-    )}&top_k=${topK}`
+  query: string,
+  collection: string = 'default',
+  topK: number = 5
+): Promise<KnowledgeBaseSearchResult[]> {
+  const url = `${API_BASE}/kb/search?query=${encodeURIComponent(query)}&collection=${encodeURIComponent(
+    collection
+  )}&top_k=${topK}`
 
-    const response = await fetch(url)
-    if (!response.ok) {
-      const txt = await response.text().catch(() => '')
-      throw new Error(`Failed to search knowledge base${txt ? `: ${txt}` : ''}`)
-    }
-    return response.json()
+  const response = await fetch(url)
+  if (!response.ok) {
+    const txt = await response.text().catch(() => '')
+    throw new Error(`Failed to search knowledge base${txt ? `: ${txt}` : ''}`)
   }
+
+  // Map Document[] to KnowledgeBaseSearchResult[]
+  const docs: Document[] = await response.json()
+  const results: KnowledgeBaseSearchResult[] = docs.map(doc => ({
+    ...doc,
+    content: doc.filename, // or use doc.file_path or fetch extracted text if backend provides it
+    metadata: {},
+    score: 1, // default score; can be updated from backend if available
+  }))
+
+  return results
+}
+
 
   async healthCheck(): Promise<{ status: string }> {
     const response = await fetch(`${API_BASE}/healthz`)

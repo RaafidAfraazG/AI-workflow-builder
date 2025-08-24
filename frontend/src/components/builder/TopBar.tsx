@@ -1,115 +1,225 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useBuilderStore } from '@/store/builderStore'
+import { Save, Play, MessageSquare, Loader2, List } from 'lucide-react'
 import { useMutation } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import { Play, MessageSquare, Save } from 'lucide-react'
+import { useBuilderStore } from '@/store/builderStore'
 import ChatWindow from './ChatWindow'
+import type { Workflow } from '@/lib/types'
 
 const TopBar: React.FC = () => {
-  const { nodes, edges } = useBuilderStore()
-  const [workflowName, setWorkflowName] = useState('Untitled Workflow')
-  const [workflowId, setWorkflowId] = useState<string | null>(null)
+  const [workflowName, setWorkflowName] = useState('My Workflow')
   const [isChatOpen, setIsChatOpen] = useState(false)
-  const [isWorkflowBuilt, setIsWorkflowBuilt] = useState(false)
+  const [isWorkflowBuilt, setIsWorkflowBuilt] = useState(false) // Track build status
+  const navigate = useNavigate()
+  
+  const { 
+    nodes, 
+    edges, 
+    currentWorkflowId, 
+    setCurrentWorkflowId 
+  } = useBuilderStore()
+
+  // Debug logging to track state changes
+  useEffect(() => {
+    console.log('TopBar state changed:', {
+      currentWorkflowId,
+      nodesLength: nodes.length,
+      isWorkflowBuilt,
+      canTest: Boolean(currentWorkflowId && nodes.length > 0)
+    })
+  }, [currentWorkflowId, nodes.length, isWorkflowBuilt])
 
   const createWorkflowMutation = useMutation({
-    mutationFn: () => api.createWorkflow({
-      name: workflowName,
-      nodes,
-      edges,
-    }),
+    mutationFn: (workflow: Omit<Workflow, 'id' | 'created_at' | 'updated_at'>) => api.createWorkflow(workflow),
     onSuccess: (data) => {
-      setWorkflowId(data.id)
-      console.log('Workflow saved successfully:', data.id)
+      console.log('Workflow created successfully:', data.id)
+      setCurrentWorkflowId(data.id)
+      setIsWorkflowBuilt(false) // Reset build status
+    },
+    onError: (error) => {
+      console.error('Failed to create workflow:', error)
+    },
+  })
+
+  const updateWorkflowMutation = useMutation({
+    mutationFn: ({ id, workflow }: { id: string; workflow: Omit<Workflow, 'id' | 'created_at' | 'updated_at'> }) => 
+      api.updateWorkflow(id, workflow),
+    onSuccess: (data) => {
+      console.log('Workflow updated successfully:', data.id)
+      // Ensure the workflow ID is maintained after update
+      if (data.id !== currentWorkflowId) {
+        setCurrentWorkflowId(data.id)
+      }
+      setIsWorkflowBuilt(false) // Reset build status after update
+    },
+    onError: (error) => {
+      console.error('Failed to update workflow:', error)
     },
   })
 
   const buildWorkflowMutation = useMutation({
     mutationFn: (id: string) => api.buildWorkflow(id),
     onSuccess: (data) => {
-      setIsWorkflowBuilt(true)
-      console.log('Workflow built successfully:', data.message)
+      console.log('Workflow built successfully:', data)
+      setIsWorkflowBuilt(true) // Mark as built
+      // Ensure workflow ID is still available after build
+      console.log('Workflow ID after build:', currentWorkflowId)
+    },
+    onError: (error) => {
+      console.error('Failed to build workflow:', error)
+      setIsWorkflowBuilt(false)
     },
   })
 
-  const handleSaveWorkflow = () => {
-    createWorkflowMutation.mutate()
-  }
+  const handleSaveWorkflow = async () => {
+    if (nodes.length === 0) {
+      alert('Please add at least one node to save the workflow')
+      return
+    }
 
-  const handleBuildWorkflow = () => {
-    if (!workflowId) {
-      // Save first, then build
-      createWorkflowMutation.mutate(undefined, {
-        onSuccess: (data) => {
-          buildWorkflowMutation.mutate(data.id)
-        }
-      })
-    } else {
-      buildWorkflowMutation.mutate(workflowId)
+    const workflow: Omit<Workflow, 'id' | 'created_at' | 'updated_at'> = {
+      name: workflowName,
+      nodes,
+      edges,
+    }
+
+    try {
+      if (currentWorkflowId) {
+        // Update existing workflow
+        updateWorkflowMutation.mutate({ id: currentWorkflowId, workflow })
+      } else {
+        // Create new workflow
+        createWorkflowMutation.mutate(workflow)
+      }
+    } catch (error) {
+      console.error('Error saving workflow:', error)
     }
   }
 
-  const handleOpenChat = () => {
-    if (workflowId && isWorkflowBuilt) {
-      setIsChatOpen(true)
+  const handleBuildWorkflow = async () => {
+    if (!currentWorkflowId) {
+      alert('Please save the workflow first')
+      return
     }
+
+    if (nodes.length === 0) {
+      alert('Please add at least one node to build the workflow')
+      return
+    }
+
+    console.log('Building workflow with ID:', currentWorkflowId)
+    buildWorkflowMutation.mutate(currentWorkflowId)
   }
 
-  const canChat = workflowId && isWorkflowBuilt && !buildWorkflowMutation.isPending
+  const handleTestWorkflow = () => {
+    console.log('Test button clicked - Current state:', {
+      currentWorkflowId,
+      nodesLength: nodes.length,
+      isWorkflowBuilt
+    })
+    
+    if (!currentWorkflowId) {
+      alert('Please save the workflow first before testing')
+      return
+    }
+    
+    if (nodes.length === 0) {
+      alert('Please add nodes to the workflow before testing')
+      return
+    }
+    
+    setIsChatOpen(true)
+  }
+
+  const handleViewAllWorkflows = () => {
+    navigate('/')
+  }
+
+  const isLoading = createWorkflowMutation.isPending || 
+                   updateWorkflowMutation.isPending || 
+                   buildWorkflowMutation.isPending
+
+  // More lenient condition for test button - remove build requirement if not needed
+  const canTestWorkflow = Boolean(currentWorkflowId && nodes.length > 0)
+  
+  // Alternative: If you want to require build before test, use this instead:
+  // const canTestWorkflow = Boolean(currentWorkflowId && nodes.length > 0 && isWorkflowBuilt)
 
   return (
     <>
-      <div className="h-16 border-b bg-white px-4 flex items-center justify-between">
+      <div className="flex items-center justify-between p-4 bg-white border-b border-gray-200">
         <div className="flex items-center space-x-4">
+          <Button
+            onClick={handleViewAllWorkflows}
+            variant="ghost"
+            size="sm"
+            className="text-gray-600 hover:text-gray-900"
+          >
+            <List className="h-4 w-4 mr-2" />
+            All Workflows
+          </Button>
           <Input
             value={workflowName}
             onChange={(e) => setWorkflowName(e.target.value)}
             className="w-64"
-            placeholder="Workflow name"
+            placeholder="Workflow Name"
           />
-          <Button
-            variant="outline"
-            onClick={handleSaveWorkflow}
-            disabled={createWorkflowMutation.isPending}
-          >
-            <Save className="mr-2 h-4 w-4" />
-            {createWorkflowMutation.isPending ? 'Saving...' : 'Save'}
-          </Button>
         </div>
-
+        
         <div className="flex items-center space-x-2">
           <Button
-            onClick={handleBuildWorkflow}
-            disabled={buildWorkflowMutation.isPending}
-          >
-            <Play className="mr-2 h-4 w-4" />
-            {buildWorkflowMutation.isPending ? 'Building...' : 'Build'}
-          </Button>
-          <Button
+            onClick={handleSaveWorkflow}
+            disabled={isLoading || nodes.length === 0}
             variant="outline"
-            onClick={handleOpenChat}
-            disabled={!canChat}
-            title={
-              !workflowId 
-                ? 'Save workflow first' 
-                : !isWorkflowBuilt 
-                ? 'Build workflow first' 
-                : 'Chat with your workflow'
-            }
+            size="sm"
           >
-            <MessageSquare className="mr-2 h-4 w-4" />
-            Chat
+            {(createWorkflowMutation.isPending || updateWorkflowMutation.isPending) ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            ) : (
+              <Save className="h-4 w-4 mr-2" />
+            )}
+            {currentWorkflowId ? 'Update' : 'Save'}
+          </Button>
+          
+          <Button
+            onClick={handleBuildWorkflow}
+            disabled={isLoading || !currentWorkflowId || nodes.length === 0}
+            variant="outline"
+            size="sm"
+          >
+            {buildWorkflowMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            ) : (
+              <Play className="h-4 w-4 mr-2" />
+            )}
+            Build
+          </Button>
+          
+          <Button
+            onClick={handleTestWorkflow}
+            disabled={!canTestWorkflow}
+            size="sm"
+            className={canTestWorkflow ? '' : 'opacity-50 cursor-not-allowed'}
+          >
+            <MessageSquare className="h-4 w-4 mr-2" />
+            Test Workflow
+            {/* Debug indicator */}
+            {process.env.NODE_ENV === 'development' && (
+              <span className="ml-1 text-xs">
+                ({currentWorkflowId ? '✓' : '✗'})
+              </span>
+            )}
           </Button>
         </div>
       </div>
 
-      {/* Chat Window */}
-      <ChatWindow 
-        isOpen={isChatOpen} 
-        onClose={() => setIsChatOpen(false)} 
-        workflowId={workflowId} 
+      <ChatWindow
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        workflowId={currentWorkflowId}
       />
     </>
   )

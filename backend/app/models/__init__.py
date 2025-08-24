@@ -1,12 +1,14 @@
-from sqlalchemy.orm import declarative_base
-
-# Create a single Base for all models
-Base = declarative_base()
-
-# Import all models so they are registered with Base
-from .workflow import Workflow, Node, Edge
+# Import all models here to make them available
 from .document import Document
 from .chat import Chat, Message
+from .workflow import Workflow, Node, Edge
 
-# Optional: define what is exported when using 'from app.models import *'
-__all__ = ["Base", "Workflow", "Node", "Edge", "Document", "Chat", "Message"]
+# Make all models available when importing from app.models
+__all__ = [
+    "Document",
+    "Chat", 
+    "Message",
+    "Workflow",
+    "Node", 
+    "Edge"
+]
