@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: workflow_builder
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  chromadb:
+    image: chromadb/chroma:latest
+    ports:
+      - "8001:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      - CHROMA_SERVER_HOST=0.0.0.0
+
+  backend:
+    build: ./backend
+    depends_on:
+      - postgres
+      - chromadb
+    environment:
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/workflow_builder
+      CHROMA_HOST: chromadb
+      CHROMA_PORT: 8000
+      LLM_PROVIDER: mock
+      OPENAI_API_KEY: your_openai_key_here
+    ports:
+      - "8000:8000"
+
+volumes:
+  postgres_data:
+  chroma_data:
