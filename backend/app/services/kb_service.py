@@ -1,4 +1,4 @@
-# backend/app/services/kb_service.py - Updated for Pydantic v2
+# backend/app/services/kb_service.py
 import os
 import logging
 import fitz  # PyMuPDF
@@ -28,14 +28,15 @@ class KnowledgeBaseService:
         """Initialize services with error handling"""
         try:
             import chromadb
-            from chromadb.config import Settings
+            from chromadb.config import Settings as ChromaSettings
 
-            self.chroma_client = chromadb.HttpClient(
-                host=getattr(settings, "CHROMA_HOST", "localhost"),
-                port=getattr(settings, "CHROMA_PORT", 8000),
-                settings=Settings(anonymized_telemetry=False),
+            # Embedded persistent mode — no Docker / no HTTP server needed.
+            # Data is stored in CHROMA_PERSIST_DIR (default: ./chroma_data).
+            self.chroma_client = chromadb.PersistentClient(
+                path=settings.CHROMA_PERSIST_DIR,
+                settings=ChromaSettings(anonymized_telemetry=False),
             )
-            logger.info("ChromaDB client initialized successfully")
+            logger.info(f"ChromaDB PersistentClient initialized at: {settings.CHROMA_PERSIST_DIR}")
         except Exception as e:
             logger.warning(f"Failed to initialize ChromaDB: {str(e)}. Using mock mode.")
             self.chroma_client = None
@@ -48,40 +49,42 @@ class KnowledgeBaseService:
             self.embedding_service = None
 
     async def upload_document(self, file: UploadFile, collection: str) -> DocumentResponse:
-        """Save uploaded PDF to disk + DB record - FIXED for Pydantic v2"""
+        """Save uploaded PDF to disk + DB record"""
         try:
-            # Ensure upload directory exists
             upload_dir = settings.UPLOAD_DIR
             os.makedirs(upload_dir, exist_ok=True)
 
             file_path = os.path.join(upload_dir, file.filename)
-            
-            # Read file content
+
             content = await file.read()
-            
-            # Write to disk
             with open(file_path, "wb") as f:
                 f.write(content)
-            
+
             logger.info(f"File saved to: {file_path}")
 
-            # Create database record
+            # Parse workflow_id if collection is a valid UUID, otherwise store as-is
+            workflow_id = None
+            try:
+                from uuid import UUID as _UUID
+                workflow_id = _UUID(collection)
+            except (ValueError, AttributeError):
+                pass
+
             document = Document(
                 filename=file.filename,
                 file_path=file_path,
                 content_type=file.content_type or "application/pdf",
-                is_ingested=False
+                is_ingested=False,
+                workflow_id=workflow_id,
             )
-            
+
             self.db.add(document)
             self.db.commit()
             self.db.refresh(document)
 
             logger.info(f"Document created with ID: {document.id}")
-            
-            # FIXED: Use model_validate for Pydantic v2
             return DocumentResponse.model_validate(document)
-            
+
         except Exception as e:
             logger.error(f"Error in upload_document: {str(e)}")
             self.db.rollback()
@@ -117,11 +120,10 @@ class KnowledgeBaseService:
                 embeddings=embeddings,
                 metadatas=metadatas,
             )
-            
-            # Mark document as ingested
+
             document.is_ingested = True
             self.db.commit()
-            
+
             logger.info(f"Successfully ingested document {document.id}")
             return SuccessResponse(message=f"Document {document_id} ingested successfully")
         except Exception as e:
@@ -130,29 +132,65 @@ class KnowledgeBaseService:
             raise
 
     async def search_documents(self, query: str, collection: str, top_k: int = 5) -> List[KnowledgeBaseSearchResult]:
-        """Search relevant documents"""
+        """Search all ingested documents for a workflow (collection = workflow_id)."""
         if not self.chroma_client or not self.embedding_service:
             logger.warning("Search unavailable, returning empty list")
             return []
 
         try:
+            # Find all ingested documents for this workflow
+            from uuid import UUID as _UUID
+            workflow_uuid = None
+            try:
+                workflow_uuid = _UUID(collection)
+            except (ValueError, AttributeError):
+                pass
+
+            if workflow_uuid:
+                docs_in_workflow = (
+                    self.db.query(Document)
+                    .filter(Document.workflow_id == workflow_uuid, Document.is_ingested == True)
+                    .all()
+                )
+            else:
+                docs_in_workflow = []
+
+            if not docs_in_workflow:
+                logger.warning(f"No ingested documents found for workflow {collection}")
+                return []
+
             query_embedding = await self.embedding_service.embed_text(query)
-            collection_obj = self.chroma_client.get_or_create_collection(name=collection)
 
-            results = collection_obj.query(query_embeddings=[query_embedding], n_results=top_k)
-
-            search_results: List[KnowledgeBaseSearchResult] = []
-            if results.get("documents"):
-                for i, doc in enumerate(results["documents"][0]):
-                    search_results.append(
-                        KnowledgeBaseSearchResult(
-                            id=results["ids"][0][i],
-                            content=doc,
-                            metadata=results["metadatas"][0][i] if results.get("metadatas") else {},
-                            score=1.0 - results["distances"][0][i] if results.get("distances") else 0.0,
-                        )
+            all_results: List[KnowledgeBaseSearchResult] = []
+            for doc in docs_in_workflow:
+                col_name = f"doc_{doc.id}".replace("-", "_")
+                try:
+                    col_obj = self.chroma_client.get_collection(name=col_name)
+                    count = col_obj.count()
+                    if count == 0:
+                        continue
+                    results = col_obj.query(
+                        query_embeddings=[query_embedding],
+                        n_results=min(top_k, count)
                     )
-            return search_results
+                    if results.get("documents"):
+                        for i, chunk in enumerate(results["documents"][0]):
+                            all_results.append(
+                                KnowledgeBaseSearchResult(
+                                    id=results["ids"][0][i],
+                                    content=chunk,
+                                    metadata=results["metadatas"][0][i] if results.get("metadatas") else {},
+                                    score=1.0 - results["distances"][0][i] if results.get("distances") else 0.0,
+                                )
+                            )
+                except Exception as col_err:
+                    logger.warning(f"Failed to search collection {col_name}: {col_err}")
+
+            # Sort by score descending, return top_k
+            all_results.sort(key=lambda x: x.score, reverse=True)
+            logger.info(f"KB search returned {len(all_results)} total results across {len(docs_in_workflow)} document(s)")
+            return all_results[:top_k]
+
         except Exception as e:
             logger.error(f"Search failed: {str(e)}")
             return []
@@ -165,24 +203,26 @@ class KnowledgeBaseService:
 
         try:
             collection_name = f"doc_{document_id}".replace("-", "_")
-            
-            # Check if collection exists before trying to delete
+
             try:
                 existing_collections = self.chroma_client.list_collections()
-                collection_exists = any(col.name == collection_name for col in existing_collections)
-                
-                if collection_exists:
+                # In chromadb 0.6+, list_collections() returns a list of Collection objects
+                collection_names = [
+                    col if isinstance(col, str) else col.name
+                    for col in existing_collections
+                ]
+                if collection_name in collection_names:
                     self.chroma_client.delete_collection(name=collection_name)
                     logger.info(f"Deleted collection for document {document_id}")
                     return SuccessResponse(message=f"Document {document_id} removed from vectorstore")
                 else:
                     logger.info(f"Collection {collection_name} does not exist, skipping")
                     return SuccessResponse(message=f"Collection {collection_name} did not exist")
-                    
+
             except Exception as delete_error:
                 logger.warning(f"ChromaDB collection deletion failed: {str(delete_error)}")
                 return SuccessResponse(message=f"Vector delete completed with warnings: {str(delete_error)}")
-                
+
         except Exception as e:
             logger.error(f"Failed to delete document {document_id} from ChromaDB: {str(e)}")
             return SuccessResponse(message=f"Vector delete failed: {str(e)}")

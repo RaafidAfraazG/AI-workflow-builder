@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useBuilderStore } from '@/store/builderStore'
@@ -9,14 +9,12 @@ import NodePalette from './NodePalette'
 import ConfigPanel from './ConfigPanel'
 
 const BuilderPage: React.FC = () => {
-  const [searchParams] = useSearchParams()
-  const workflowId = searchParams.get('id')
+  const { id: workflowId } = useParams()
   
   const { 
     setWorkflow, 
     clearWorkflow, 
-    setCurrentWorkflowId,
-    currentWorkflowId 
+    setCurrentWorkflowId
   } = useBuilderStore()
 
   // Load existing workflow if ID is provided

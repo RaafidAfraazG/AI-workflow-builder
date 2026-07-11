@@ -5,6 +5,9 @@ import os
 import logging
 import time
 
+# Disable ChromaDB telemetry before any ChromaDB import
+os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
+
 from app.core.config import settings
 from app.core.db import create_tables, test_connection
 from app.api import workflows, health, kb
@@ -71,10 +74,12 @@ async def startup_event():
     logger.info("=== AI Workflow Builder Configuration ===")
     logger.info(f"DATABASE_URL: {settings.DATABASE_URL}")
     logger.info(f"LLM_PROVIDER: {settings.LLM_PROVIDER}")
+    logger.info(f"EMBEDDING_PROVIDER: {settings.EMBEDDING_PROVIDER}")
+    logger.info(f"GEMINI_API_KEY: {'SET' if settings.GEMINI_API_KEY else 'NOT SET ⚠️'}")
     logger.info(f"OPENAI_API_KEY: {'SET' if settings.OPENAI_API_KEY else 'NOT SET'}")
     logger.info(f"SERPAPI_KEY: {'SET' if settings.SERPAPI_KEY else 'NOT SET'}")
     logger.info(f"BRAVE_API_KEY: {'SET' if settings.BRAVE_API_KEY else 'NOT SET'}")
-    logger.info(f"CHROMA_HOST: {settings.CHROMA_HOST}")
+    logger.info(f"CHROMA_PERSIST_DIR: {settings.CHROMA_PERSIST_DIR}")
     logger.info(f"CORS_ORIGINS: {settings.CORS_ORIGINS}")
     logger.info(f"DEBUG: {settings.DEBUG}")
     logger.info("=" * 40)

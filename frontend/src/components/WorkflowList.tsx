@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Calendar, Search, Play, Eye, Trash2, Plus, Activity, MessageSquare, Settings } from 'lucide-react'
+import { Calendar, Search, Eye, Trash2, Plus, Activity, MessageSquare, Settings } from 'lucide-react'
 import { api } from '@/lib/api'
 import { Workflow } from '@/lib/types'
 

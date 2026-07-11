@@ -13,10 +13,10 @@ class Workflow(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Fixed relationships with overlaps to prevent warnings
-    nodes = relationship("Node", cascade="all, delete-orphan", lazy="select", overlaps="workflow")
-    edges = relationship("Edge", cascade="all, delete-orphan", lazy="select", overlaps="workflow")
-    chats = relationship("Chat", lazy="select")
+    # Use selectin loading so nodes/edges are always available within the session
+    nodes = relationship("Node", cascade="all, delete-orphan", lazy="selectin", overlaps="workflow")
+    edges = relationship("Edge", cascade="all, delete-orphan", lazy="selectin", overlaps="workflow")
+    chats = relationship("Chat", cascade="all, delete-orphan", lazy="selectin", back_populates="workflow")
 
 
 class Node(Base):

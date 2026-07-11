@@ -14,6 +14,7 @@ class DocumentResponse(BaseModel):
     content_type: Optional[str] = None
     created_at: datetime
     is_ingested: bool = False
+    workflow_id: Optional[UUID] = None
 
 class KnowledgeBaseSearchResult(BaseModel):
     """Search result from knowledge base"""

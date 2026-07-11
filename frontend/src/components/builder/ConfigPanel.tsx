@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { api } from "@/lib/api"
 
 const ConfigPanel = () => {
-  const { selectedNode, updateNode } = useBuilderStore()
+  const { selectedNode, updateNode, removeNode, setSelectedNode, currentWorkflowId } = useBuilderStore()
   const config = selectedNode?.data?.config || {}
 
   const [localPrompt, setLocalPrompt] = useState("")
@@ -51,6 +51,12 @@ const ConfigPanel = () => {
     const file = e.target.files?.[0]
     if (!file) return
 
+    if (!currentWorkflowId) {
+      alert("Please save the workflow first before uploading documents.")
+      e.target.value = ""
+      return
+    }
+
     if (file.type !== "application/pdf") {
       alert("Please upload PDF files only")
       return
@@ -61,7 +67,7 @@ const ConfigPanel = () => {
 
     try {
       // Upload
-      const newDoc = await api.uploadDocument(file, localCollection)
+      const newDoc = await api.uploadDocument(file, currentWorkflowId)
 
       // Update node config
       handleConfigChange("documents", [...(config.documents || []), newDoc])
@@ -80,12 +86,17 @@ const ConfigPanel = () => {
   const removeDocument = async (docId: string) => {
     try {
       await api.deleteDocument(docId)
-      const updated = (config.documents || []).filter((doc: any) => doc.id !== docId)
-      handleConfigChange("documents", updated)
     } catch (err) {
-      console.error("Delete failed:", err)
-      alert("Failed to delete document. Check backend logs.")
+      console.error("Delete failed on backend:", err)
+      // Continue to remove from UI anyway
     }
+    const updated = (config.documents || []).filter((doc: any) => doc.id !== docId)
+    handleConfigChange("documents", updated)
+  }
+
+  const handleDeleteNode = () => {
+    removeNode(selectedNode.id)
+    setSelectedNode(null)
   }
 
   const renderFields = () => {
@@ -268,9 +279,21 @@ const ConfigPanel = () => {
   }
 
   return (
-    <div className="p-4 space-y-4">
-      <h3 className="text-lg font-semibold mb-2">{selectedNode.data.label} Config</h3>
-      {renderFields()}
+    <div className="p-4 space-y-4 flex flex-col h-full">
+      <div className="flex-1 space-y-4 overflow-y-auto">
+        <h3 className="text-lg font-semibold mb-2">{selectedNode.data.label} Config</h3>
+        {renderFields()}
+      </div>
+      <div className="pt-4 border-t border-gray-200">
+        <Button 
+          variant="destructive" 
+          className="w-full flex items-center justify-center gap-2"
+          onClick={handleDeleteNode}
+        >
+          <Trash2 className="w-4 h-4" />
+          Delete Node
+        </Button>
+      </div>
     </div>
   )
 }

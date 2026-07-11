@@ -27,7 +27,12 @@ export interface Workflow {
 export interface Chat {
   id: string
   workflow_id: string
+  title?: string
   created_at: string
+}
+
+export interface ChatWithMessages extends Chat {
+  messages: Message[]
 }
 
 export interface Message {

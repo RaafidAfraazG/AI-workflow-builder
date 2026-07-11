@@ -1,4 +1,4 @@
-import { Workflow, Chat, Message, Document, KnowledgeBaseSearchResult } from './types'
+import { Workflow, Chat, ChatWithMessages, Document, KnowledgeBaseSearchResult } from './types'
 
 const API_BASE = '/api'
 
@@ -54,11 +54,44 @@ class ApiClient {
     return response.json()
   }
 
-  async createChat(workflowId: string): Promise<Chat> {
+  async createChat(workflowId: string, title?: string): Promise<Chat> {
+    const body = title ? JSON.stringify({ workflow_id: workflowId, title }) : JSON.stringify({ workflow_id: workflowId })
     const response = await fetch(`${API_BASE}/workflows/${workflowId}/chat`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
     })
     if (!response.ok) throw new Error('Failed to create chat')
+    return response.json()
+  }
+
+  async getChats(workflowId: string): Promise<Chat[]> {
+    const response = await fetch(`${API_BASE}/workflows/${workflowId}/chats`)
+    if (!response.ok) throw new Error('Failed to get chats')
+    return response.json()
+  }
+
+  async getChat(workflowId: string, chatId: string): Promise<ChatWithMessages> {
+    const response = await fetch(`${API_BASE}/workflows/${workflowId}/chat/${chatId}`)
+    if (!response.ok) throw new Error('Failed to get chat')
+    return response.json()
+  }
+
+  async updateChat(workflowId: string, chatId: string, title: string): Promise<Chat> {
+    const response = await fetch(`${API_BASE}/workflows/${workflowId}/chat/${chatId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title }),
+    })
+    if (!response.ok) throw new Error('Failed to update chat')
+    return response.json()
+  }
+
+  async deleteChat(workflowId: string, chatId: string): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${API_BASE}/workflows/${workflowId}/chat/${chatId}`, {
+      method: 'DELETE',
+    })
+    if (!response.ok) throw new Error('Failed to delete chat')
     return response.json()
   }
 

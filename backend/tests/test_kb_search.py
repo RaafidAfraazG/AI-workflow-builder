@@ -1,6 +1,6 @@
 import pytest
 from app.services.kb_service import KnowledgeBaseService
-from app.services.embedding_service import MockEmbeddingProvider
+from app.services.embedding_service import EmbeddingService
 from app.models.document import Document
 from uuid import uuid4
 import tempfile
@@ -9,9 +9,11 @@ import os
 class TestKnowledgeBaseSearch:
     @pytest.fixture
     def kb_service(self):
-        service = KnowledgeBaseService()
+        from unittest.mock import MagicMock
+        service = KnowledgeBaseService(db=MagicMock())
         # Force use of mock embedding for testing
-        service.embedding_service.provider = MockEmbeddingProvider()
+        service.embedding_service = EmbeddingService()
+        service.embedding_service.provider = "mock"
         return service
 
     @pytest.fixture
@@ -62,24 +64,26 @@ class TestKnowledgeBaseSearch:
 
     @pytest.mark.asyncio
     async def test_mock_embeddings_generation(self):
-        provider = MockEmbeddingProvider()
+        provider = EmbeddingService()
+        provider.provider = "mock"
         
         text = "This is a test document"
         embedding = await provider.embed_text(text)
         
         assert isinstance(embedding, list)
-        assert len(embedding) == 1536  # OpenAI's embedding dimension
+        assert len(embedding) == 768  # Gemini embedding dimension
         assert all(isinstance(x, float) for x in embedding)
 
     @pytest.mark.asyncio
     async def test_multiple_embeddings(self):
-        provider = MockEmbeddingProvider()
+        provider = EmbeddingService()
+        provider.provider = "mock"
         
         texts = ["First document", "Second document", "Third document"]
         embeddings = await provider.embed_texts(texts)
         
         assert len(embeddings) == 3
-        assert all(len(emb) == 1536 for emb in embeddings)
+        assert all(len(emb) == 768 for emb in embeddings)
         
         # Different texts should produce different embeddings
         assert embeddings[0] != embeddings[1]

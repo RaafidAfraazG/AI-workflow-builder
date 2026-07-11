@@ -9,7 +9,8 @@ class Chat(Base):
     __tablename__ = "chats"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    workflow_id = Column(UUID(as_uuid=True), ForeignKey("workflows.id"), nullable=False)
+    workflow_id = Column(UUID(as_uuid=True), ForeignKey("workflows.id", ondelete="CASCADE"), nullable=False)
+    title = Column(String(255), nullable=True, default="New Chat")
     created_at = Column(DateTime, default=datetime.utcnow)
 
     workflow = relationship("Workflow", back_populates="chats")

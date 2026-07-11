@@ -16,7 +16,7 @@ import KnowledgeBaseNode from '../nodes/KnowledgeBaseNode'
 import LlmEngineNode from '../nodes/LlmEngineNode'
 import OutputNode from '../nodes/OutputNode'
 import { useBuilderStore } from '@/store/builderStore'
-import type { Node, Edge } from '@/lib/types'
+import type { Edge } from '@/lib/types'
 
 const nodeTypes = {
   userQuery: UserQueryNode,
@@ -26,7 +26,7 @@ const nodeTypes = {
 }
 
 const WorkflowCanvas: React.FC = () => {
-  const { nodes, edges, setNodes, setEdges, addEdge: addStoreEdge, setSelectedNode } =
+  const { nodes, edges, setNodes, setEdges, addEdge: addStoreEdge, setSelectedNode, removeNode } =
     useBuilderStore()
 
   // React Flow states
@@ -68,6 +68,21 @@ const WorkflowCanvas: React.FC = () => {
     })
   }, [nodes, setNodes, onNodesChange])
 
+  const handleNodesDelete = useCallback((deletedNodes: RFNode[]) => {
+    deletedNodes.forEach(node => {
+      removeNode(node.id)
+    })
+    setSelectedNode(null)
+  }, [removeNode, setSelectedNode])
+
+  const handleEdgesDelete = useCallback((deletedEdges: RFEdge[]) => {
+    // Just sync all edges directly from ReactFlow state
+    // We do this by getting the latest ReactFlow edges after deletion and setting them to the store
+    // A simpler approach is to update the store's edges by filtering out deleted ones
+    const deletedIds = deletedEdges.map(e => e.id)
+    setEdges(edges.filter(e => !deletedIds.includes(e.id)))
+  }, [edges, setEdges])
+
   const onConnect = useCallback(
     (params: RFEdge | Connection) => {
       const newEdge: RFEdge = {
@@ -83,7 +98,7 @@ const WorkflowCanvas: React.FC = () => {
   )
 
   const onNodeClick = useCallback(
-    (event: React.MouseEvent, node: RFNode) => {
+    (_event: React.MouseEvent, node: RFNode) => {
       const storeNode = nodes.find((n) => n.id === node.id)
       setSelectedNode(storeNode || null)
     },
@@ -97,6 +112,8 @@ const WorkflowCanvas: React.FC = () => {
         edges={reactFlowEdges}
         onNodesChange={handleNodesChange}
         onEdgesChange={onEdgesChange}
+        onNodesDelete={handleNodesDelete}
+        onEdgesDelete={handleEdgesDelete}
         onConnect={onConnect}
         onNodeClick={onNodeClick}
         nodeTypes={nodeTypes}

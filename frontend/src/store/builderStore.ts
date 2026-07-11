@@ -22,7 +22,7 @@ interface BuilderState {
   clearWorkflow: () => void
 }
 
-export const useBuilderStore = create<BuilderState>((set, get) => ({
+export const useBuilderStore = create<BuilderState>()((set, _get) => ({
   nodes: [],
   edges: [],
   selectedNode: null,

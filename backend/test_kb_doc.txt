@@ -1,0 +1,35 @@
+AI Workflow Builder - Knowledge Base Test Document
+
+This document is for testing the RAG pipeline in the AI Workflow Builder application.
+
+Company: TechCorp AI Solutions
+Founded: 2024
+CEO: Alex Johnson
+Product: AI Workflow Builder
+
+Key Features:
+- Visual drag-and-drop workflow builder
+- Knowledge base integration with PDF upload
+- Real-time streaming chat via SSE
+- Gemini 2.5 Flash LLM for generation
+- ChromaDB vector database for semantic search
+
+Pricing:
+- Starter Plan: $29/month (5 workflows)
+- Pro Plan: $99/month (unlimited workflows)
+- Enterprise Plan: Custom pricing
+
+The platform supports four node types:
+1. User Query - captures user input
+2. Knowledge Base - retrieves relevant context from uploaded documents
+3. LLM Engine - generates responses using Gemini
+4. Output - formats and returns the final answer
+
+Technical Stack:
+- Backend: FastAPI + SQLAlchemy + PostgreSQL
+- Frontend: React + ReactFlow + Vite
+- Vector Store: ChromaDB (embedded)
+- Embeddings: Gemini Embedding 001 (3072 dims)
+
+Support: support@techcorp-ai.com
+Website: https://techcorp-ai.com
