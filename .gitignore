@@ -44,3 +44,18 @@ alembic/versions/*.py
 .coverage
 htmlcov/
 .pytest_cache/
+
+# ChromaDB
+backend/chroma_data/
+backend/chroma_test/
+
+# Uploaded files
+backend/uploads/
+
+# Environment
+.env
+backend/.env
+
+# Python
+__pycache__/
+*.pyc
