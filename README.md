@@ -11,6 +11,11 @@
 A visual Agentic AI workflow platform for designing and executing multi-step AI pipelines without writing code. It combines document intelligence, semantic retrieval, configurable LLMs, and workflow orchestration through an interactive drag-and-drop interface.
 
 ---
+## 🎥 Demo
+
+[Watch the Demo](https://www.loom.com/share/4175ff7a7e5647749622cd305c39d6ec)
+
+---
 
 ## Features
 
