@@ -13,7 +13,9 @@ A visual Agentic AI workflow platform for designing and executing multi-step AI 
 ---
 ## 🎥 Demo
 
-[Watch the Demo](https://www.loom.com/share/4175ff7a7e5647749622cd305c39d6ec)
+<a href="https://www.loom.com/share/4175ff7a7e5647749622cd305c39d6ec" target="_blank">
+  <img width="960" height="499" alt="AI Workflow Builder Demo" src="https://github.com/user-attachments/assets/9e2b1ba4-0d15-49b7-b4ea-9da304b0ff47" />
+</a>
 
 ---
 
